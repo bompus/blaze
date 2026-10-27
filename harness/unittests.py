@@ -49,8 +49,9 @@ OPEN = {
 
 COLOR = re.compile(r"\x1b\[[0-9;]*m")
 # A test binary is `deps/<name>-<hash>` in cargo's first layout of the build directory and
-# `build/<package>/<hash>/out/<name>-<hash>` in its second (nightly cargo's default).
-RUNNING = re.compile(r"^\s+Running .*[/\\](?:deps|out)[/\\](\w+?)-[0-9a-f]{16}\b")
+# `build/<package>/<hash>/out/<name>-<hash>` in its second (nightly cargo's default); blaze names
+# it `deps/<name>-<kind>`, a bin's name with its dashes.
+RUNNING = re.compile(r"^\s+Running .*[/\\](?:deps|out)[/\\]([\w-]+?)-(?:[0-9a-f]{16}|lib|bin|test|bench)\b")
 DOCTESTS = re.compile(r"^\s+Doc-tests (\w+)")
 RESULT = re.compile(r"^test (\S+)(?: - .*)? \.\.\. (ok|FAILED|ignored)")
 
@@ -65,7 +66,7 @@ def run(command, cwd, env, seen, failed):
         sys.stdout.write(line)
         line = COLOR.sub("", line)
         if m := RUNNING.match(line) or DOCTESTS.match(line):
-            binary = m.group(1)
+            binary = m.group(1).replace("-", "_")
         elif m := RESULT.match(line):
             name = f"{binary}::{m.group(1)}"
             seen.add(name)
