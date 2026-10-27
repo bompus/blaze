@@ -407,7 +407,9 @@ with the `llvm` feature, hands the binary to its other jobs, and runs:
 - `harness/wasm32.py` (Linux x86-64, in the flake's `wasm` shell): the corpus and `stress.py`
   built for `wasm32-wasip1` and run under wasmtime against cargo's build;
 - `cargo_ra_jit.py`: its checks, ripgrep and hyperfine, and fd (Linux x86-64 and macOS), and
-  ripgrep, fd, bat, hyperfine, just, axum and nushell with each project's tests (Linux AArch64);
+  ripgrep, fd, bat, hyperfine, just, axum and nushell with each project's tests (Linux AArch64;
+  axum and nushell not blocking, [#26](https://github.com/indexable-inc/blaze/issues/26) and
+  [#734](https://github.com/indexable-inc/blaze/issues/734));
 - `fork alone`: `vendor/rust-analyzer` built and tested outside this repository (the tests of
   `hir-ty`, `hir-ty-borrowck`, `hir-ty-wfcheck` and `ide-diagnostics`, whose diagnostics are the
   daemon's errors);

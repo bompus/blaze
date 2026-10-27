@@ -15,10 +15,9 @@ use anyhow::{Context, bail};
 use rustc_hash::FxHashSet;
 use serde_derive::Deserialize;
 
-use crate::{
-    SourceId,
-    http::{Http, HttpNotSuccessful, Retry},
-};
+use blaze_source::SourceId;
+
+use crate::http::{Http, HttpNotSuccessful, Retry};
 
 /// The `config.json` at the root of an index.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]

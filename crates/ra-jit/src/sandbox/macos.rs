@@ -255,12 +255,14 @@ pub(super) fn run(spec: &Spec, program: Option<&[OsString]>) -> Result<i32, Stri
             config.push_str(&format!("B\t{it}\t{dir}/tmp/{to}\n"));
         }
     }
-    // A directory passed through below a temporary one is reached through the directories
-    // above it, which are answered from the empty one: they are made there, as Linux makes
-    // the points it mounts it on. Without them `realpath` (Rust's `canonicalize`), which looks
-    // at each directory of a path in turn, says the path is not there, and a proc-macro server
-    // canonicalizes the library it loads: every macro of a workspace below `/tmp` failed.
-    for passed in spec.writable.iter().chain(&spec.readable) {
+    // A directory passed through or overlaid below a temporary one is reached through the
+    // directories above it, which are answered from the empty one: they are made there, as
+    // Linux makes the points it mounts it on. Without them `realpath` (Rust's `canonicalize`),
+    // which looks at each directory of a path in turn, says the path is not there: a
+    // proc-macro server canonicalizes the library it loads, and every macro of a workspace
+    // below `/tmp` failed; a cargo a test runs canonicalizes the workspace once rustc has
+    // compiled a crate of it, and failed "could not parse/generate dep info".
+    for passed in spec.writable.iter().chain(&spec.readable).chain(&spec.overlays) {
         for (temp, to) in &temps {
             let below = spellings(passed).into_iter().find_map(|passed| {
                 spellings(temp).into_iter().find_map(|temp| {

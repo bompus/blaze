@@ -11,8 +11,10 @@ use anyhow::{Context as _, bail};
 use rustc_hash::FxHashMap;
 use semver::{Version, VersionReq};
 
+use blaze_source::SourceId;
+
 use crate::{
-    Context, SourceId,
+    Context,
     index::{IndexLine, Status, Summaries, dep_path},
     sparse::{LoadResponse, RegistryConfig, SparseIndex},
 };
@@ -55,7 +57,7 @@ impl Registry {
         let registry = context.cargo_home.join("registry");
         let index_dir = registry.join("index").join(&name);
         let sparse = SparseIndex::new(
-            source.clone(),
+            source,
             index_dir.clone(),
             context.http.clone(),
             context.net.retry,

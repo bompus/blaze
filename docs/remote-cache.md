@@ -705,7 +705,7 @@ per head. `ed25519-dalek` does the checks (2.2 in the workspace today).
 | who | reads | writes |
 |---|---|---|
 | CI on main, `cache-writer` job | public | the `blaze` tenant and public blobs, with `BLAZE_CACHE_TOKEN` and the signing key |
-| CI on a branch of the repository, a merge-queue run | public, anonymously | nothing (no environment, no token) |
+| CI on a branch of the repository | public, anonymously | nothing (no environment, no token) |
 | CI on a pull request from a fork | public, anonymously | nothing: GitHub gives fork runs no secrets |
 | any user | public, anonymously; their own tenant with its token | their own tenant, with its token and their keys |
 | the gateway | everything | locations, refresh copies; never a head, since it holds no signing key |

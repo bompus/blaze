@@ -1893,7 +1893,8 @@ def main():
             md.write("\n## Plain cargo after `ra-jit enable`\n\n" + "".join(f"- {'ok' if held else 'NOT'}: {name} {detail}\n" for name, held, detail in result["plain"]))
         if result.get("upgraded"):
             md.write("\n## After an upgrade, and a project pinned to another release\n\n" + "".join(f"- {'ok' if held else 'NOT'}: {name} {detail}\n" for name, held, detail in result["upgraded"]))
-    if "--keep" not in argv:
+    # A failed run keeps its workers' logs for CI's upload (ra-jit-platform.yaml's cargo-ra-jit-logs).
+    if "--keep" not in argv and not result["wrong"]:
         shutil.rmtree(work, ignore_errors=True)
     print("PASS" if not result["wrong"] else "FAIL:\n" + "\n".join(result["wrong"]))
     sys.exit(1 if result["wrong"] else 0)

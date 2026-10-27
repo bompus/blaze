@@ -785,6 +785,7 @@ name = "blaze-registry"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blaze-source",
  "cargo-platform",
  "filetime",
  "flate2",
@@ -796,7 +797,6 @@ dependencies = [
  "percent-encoding",
  "ra-jit-store",
  "rustc-hash 2.1.2",
- "rustc-stable-hash",
  "semver",
  "serde",
  "serde_derive",
@@ -813,6 +813,7 @@ name = "blaze-resolve"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blaze-source",
  "cargo-platform",
  "im-rc",
  "rustc-hash 2.1.2",
@@ -822,6 +823,18 @@ dependencies = [
  "toml",
  "tracing",
  "unicode-ident",
+ "url",
+]
+
+[[package]]
+name = "blaze-source"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rustc-hash 2.1.2",
+ "rustc-stable-hash",
+ "semver",
+ "serde",
  "url",
 ]
 

@@ -891,23 +891,23 @@ fn fetch(
         if id.source_id().is_path() {
             continue;
         }
-        let source_text = id.source_id().as_url().to_string();
-        let (source, precise) = blaze_registry::SourceId::from_url(&source_text)?;
-        let from = sources.map().replacement(&source, precise.is_some())?;
+        let source = id.source_id();
+        let source_text = source.as_url().to_string();
+        let from = sources.map().replacement(source)?;
         if from.is_remote_registry() && !from.is_sparse() {
             bail!("{source_text} is read from a git index, which blaze does not read yet");
         }
         let mut checksum = lock.checksums().get(&id).cloned().flatten().unwrap_or_default();
         // A lock file of cargo before 1.53 may name no checksum: the index's.
         if checksum.is_empty() && from.is_remote_registry() {
-            checksum = sources.registry(&from)?.checksum(id.name().as_str(), id.version())?;
+            checksum = sources.registry(from)?.checksum(id.name().as_str(), id.version())?;
         }
         let package = blaze_registry::Package {
             name: id.name().to_string(),
             version: id.version().clone(),
             checksum,
         };
-        locked.push(blaze_registry::Locked { source, precise, package });
+        locked.push(blaze_registry::Locked { source, package });
         ids.push((id, source_text));
     }
     let roots = sources.fetch(&locked)?;
@@ -991,22 +991,25 @@ pub fn vendored(
                 out.push(Vendored { id, checksum, root, tarball: None });
                 continue;
             }
-            let source_text = id.source_id().as_url().to_string();
-            let (source, precise) = blaze_registry::SourceId::from_url(&source_text)?;
-            let from = sources.map().replacement(&source, precise.is_some())?;
-            use blaze_registry::SourceKind;
+            let source = id.source_id();
+            let from = sources.map().replacement(source)?;
             match from.kind() {
-                SourceKind::Registry | SourceKind::SparseRegistry | SourceKind::LocalRegistry => {}
-                SourceKind::Git(_) => bail!(
+                blaze_resolve::SourceKind::Registry
+                | blaze_resolve::SourceKind::SparseRegistry
+                | blaze_resolve::SourceKind::LocalRegistry => {}
+                blaze_resolve::SourceKind::Git(_) => bail!(
                     "blaze does not vendor `{id}` yet: a git package is vendored with its \
                      manifest as `cargo package` writes it, which blaze does not write yet"
                 ),
                 _ => bail!("blaze does not vendor `{id}` yet: it is read from {from}"),
             }
             if from.is_remote_registry() && !from.is_sparse() {
-                bail!("{source_text} is read from a git index, which blaze does not read yet");
+                bail!(
+                    "{} is read from a git index, which blaze does not read yet",
+                    source.as_url()
+                );
             }
-            let registry = sources.registry(&from)?;
+            let registry = sources.registry(from)?;
             let mut sum = checksum.clone().unwrap_or_default();
             if sum.is_empty() && from.is_remote_registry() {
                 sum = registry.checksum(id.name().as_str(), id.version())?;
@@ -1017,7 +1020,7 @@ pub fn vendored(
                 checksum: sum,
             };
             let tarball = registry.crate_file(id.name().as_str(), id.version());
-            locked.push(blaze_registry::Locked { source, precise, package });
+            locked.push(blaze_registry::Locked { source, package });
             fetched.push(out.len());
             out.push(Vendored { id, checksum, root: PathBuf::new(), tarball: Some(tarball) });
         }
@@ -1067,7 +1070,7 @@ fn source_config(config: &Config) -> Result<blaze_registry::SourceConfig> {
             definition: definition.unwrap_or_default(),
             ..Default::default()
         };
-        if name == blaze_registry::CRATES_IO_REGISTRY {
+        if name == blaze_resolve::CRATES_IO_REGISTRY {
             if it.replace_with.is_some() {
                 out.sources.push((name, it));
             }
@@ -1095,7 +1098,7 @@ fn source_config(config: &Config) -> Result<blaze_registry::SourceConfig> {
     }
     let registries: Option<BTreeMap<String, RegistryConfig>> = config.get("registries")?;
     for name in registries.into_iter().flatten().map(|(name, _)| name) {
-        if name == blaze_registry::CRATES_IO_REGISTRY {
+        if name == blaze_resolve::CRATES_IO_REGISTRY {
             continue;
         }
         let index = config.registry_index(&name)?;

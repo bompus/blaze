@@ -317,7 +317,10 @@ pub(crate) fn toolchain_rustc_of(program: &OsStr) -> Option<PathBuf> {
 
 /// The executable of the toolchain that `program` runs. rustup's proxy runs the toolchain
 /// rustup set for the process it started, and is not known without that.
-fn toolchain_rustc(program: &OsStr, var: &dyn Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+pub(crate) fn toolchain_rustc(
+    program: &OsStr,
+    var: &dyn Fn(&str) -> Option<OsString>,
+) -> Option<PathBuf> {
     let found = if Path::new(program).components().count() > 1 {
         PathBuf::from(program)
     } else {

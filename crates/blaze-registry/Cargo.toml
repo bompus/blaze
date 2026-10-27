@@ -15,6 +15,7 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
+blaze-source.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_derive.workspace = true
@@ -24,8 +25,6 @@ url.workspace = true
 percent-encoding = "2"
 # The parser cargo 1.99 parses a dependency's `target` with: the same crate and version.
 cargo-platform = "0.3.3"
-# The hasher cargo names a source's directories with.
-rustc-stable-hash = "0.1.2"
 sha2 = "0.10"
 flate2 = "1"
 tar = { version = "0.4.46", default-features = false }

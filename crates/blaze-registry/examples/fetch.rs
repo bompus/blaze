@@ -16,9 +16,9 @@ use std::{
 
 use anyhow::{Context as _, bail};
 use blaze_registry::{
-    Context, Locked, Package, SourceConfig, SourceDef, SourceId, Sources, download::From,
-    http::HyperHttp,
+    Context, Locked, Package, SourceConfig, SourceDef, Sources, download::From, http::HyperHttp,
 };
+use blaze_source::SourceId;
 use semver::Version;
 
 fn main() -> anyhow::Result<()> {
@@ -60,23 +60,22 @@ fn main() -> anyhow::Result<()> {
         let v1 = format!("checksum {name} {version} ({source})");
         let checksum = field("checksum")
             .or_else(|| metadata.and_then(|it| it.get(&v1)).and_then(|it| it.as_str()));
-        let (source, precise) = SourceId::from_url(source)?;
+        let source = SourceId::from_url(source)?;
         let mut package = Package {
             name: name.to_owned(),
             version: Version::parse(version)?,
             checksum: checksum.unwrap_or_default().to_owned(),
         };
-        let from = sources.map().replacement(&source, precise.is_some())?;
+        let from = sources.map().replacement(source)?;
         if from.is_remote_registry() && !from.is_sparse() {
             *counts.entry("git index").or_default() += 1;
             continue;
         }
         // A lock file of cargo before 1.53 may name no checksum: the index's.
         if checksum.is_none() && from.is_remote_registry() {
-            package.checksum =
-                sources.registry(&from)?.checksum(&package.name, &package.version)?;
+            package.checksum = sources.registry(from)?.checksum(&package.name, &package.version)?;
         }
-        locked.push(Locked { source, precise, package });
+        locked.push(Locked { source, package });
     }
     let fetched = sources.fetch(&locked)?;
     for (_, from) in &fetched {

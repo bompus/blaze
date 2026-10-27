@@ -113,6 +113,12 @@ fn store() -> anyhow::Result<&'static Store> {
     store.context("there is no store to keep or take the closure in: RA_JIT_CACHE turns it off")
 }
 
+/// Has blaze's store see what other processes put in it since this one opened it.
+pub(crate) fn refresh() -> anyhow::Result<()> {
+    store()?.refresh();
+    Ok(())
+}
+
 /// Every store path `roots` refer to, themselves included, each once and sorted by path, from
 /// blaze's store and the remote it takes what it lacks from: each with its NarHash, which is
 /// what a key of what runs with them has to name.

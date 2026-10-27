@@ -12,7 +12,6 @@ pub mod git;
 pub mod http;
 pub mod index;
 pub mod registry;
-mod source_id;
 pub mod sources;
 pub mod sparse;
 
@@ -23,13 +22,23 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Context as _;
+use blaze_source::SourceId;
+
 pub use download::{Blobs, Package};
 pub use registry::Registry;
-pub use source_id::{
-    CRATES_IO_HTTP_INDEX, CRATES_IO_INDEX, CRATES_IO_REGISTRY, GitReference, SourceId, SourceKind,
-    short_hash,
-};
 pub use sources::{Locked, SourceConfig, SourceDef, SourceMap, Sources};
+
+/// A remote registry named by its index URL alone: sparse when it starts with `sparse+`, else
+/// a git index.
+pub fn registry_source(url: &str) -> anyhow::Result<SourceId> {
+    SourceId::for_registry(&url::Url::parse(url).with_context(|| format!("`{url}` is not a URL"))?)
+}
+
+/// The directory of a path, directory or local-registry source.
+pub(crate) fn path_of(id: SourceId) -> anyhow::Result<PathBuf> {
+    id.url().to_file_path().map_err(|()| anyhow::anyhow!("{} is not a directory", id.url()))
+}
 
 /// What fetching reads of cargo's configuration (`[net]`, `[http]`, `--offline`), as a plain
 /// struct: `crates/blaze-manifest` fills it from `.cargo/config.toml`, `CARGO_*` variables and

@@ -95,6 +95,7 @@ blaze-fmt = { path = "crates/blaze-fmt" }
 blaze-lints = { path = "crates/blaze-lints" }
 blaze-manifest = { path = "crates/blaze-manifest" }
 blaze-metadata = { path = "crates/blaze-metadata" }
+blaze-source = { path = "crates/blaze-source" }
 blaze-units = { path = "crates/blaze-units" }
 blaze-new = { path = "crates/blaze-new" }
 blaze-tree = { path = "crates/blaze-tree" }

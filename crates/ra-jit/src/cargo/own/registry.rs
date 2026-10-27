@@ -10,8 +10,8 @@ use anyhow::{Context as _, anyhow, bail};
 use blaze_manifest::config::{OptValue, PathAndArgs, Value};
 use blaze_manifest::metadata::root_manifest;
 use blaze_manifest::{Config, Context, Workspace};
-use blaze_registry::SourceId;
 use blaze_registry::api::{Api, check_token};
+use blaze_resolve::{CRATES_IO_REGISTRY, SourceId};
 
 use super::super::say;
 use super::args::{Args, Read, switch, valued};
@@ -308,23 +308,18 @@ impl Target {
 /// cargo's `get_source_id`: the registry named, with only crates.io's own replacement (its
 /// sparse index); with none named, a `[source]` replacing crates.io is an error.
 fn target(ctx: &Context, asked: Option<&RegistryOrIndex>) -> anyhow::Result<Target> {
-    let crates_io =
-        || (SourceId::crates_io_git(), Some(blaze_registry::CRATES_IO_REGISTRY.to_owned()));
+    let crates_io = || (SourceId::crates_io(), Some(CRATES_IO_REGISTRY.to_owned()));
     let (original, name) = match asked {
         None => crates_io(),
-        Some(RegistryOrIndex::Index(url)) => (SourceId::for_registry(url)?, None),
-        Some(RegistryOrIndex::Registry(name)) if name == blaze_registry::CRATES_IO_REGISTRY => {
-            crates_io()
-        }
+        Some(RegistryOrIndex::Index(url)) => (blaze_registry::registry_source(url)?, None),
+        Some(RegistryOrIndex::Registry(name)) if name == CRATES_IO_REGISTRY => crates_io(),
         Some(RegistryOrIndex::Registry(name)) => {
             let index = ctx.config.registry_index(name)?;
-            (SourceId::for_registry(index.as_str())?, Some(name.clone()))
+            (SourceId::for_alt_registry(&index, name)?, Some(name.clone()))
         }
     };
-    let builtin =
-        blaze_metadata::registry_sources(ctx, false)?.map().replacement(&original, false)?;
-    let replaced =
-        blaze_metadata::registry_sources(ctx, true)?.map().replacement(&original, false)?;
+    let builtin = blaze_metadata::registry_sources(ctx, false)?.map().replacement(original)?;
+    let replaced = blaze_metadata::registry_sources(ctx, true)?.map().replacement(original)?;
     if asked.is_none() && replaced != builtin {
         let shown = match replaced_by(&ctx.config)? {
             Some((name, true)) => bail!(
@@ -343,7 +338,7 @@ fn target(ctx: &Context, asked: Option<&RegistryOrIndex>) -> anyhow::Result<Targ
 /// The last name of crates.io's chain of `replace-with`, and whether it is a `[registries]`
 /// name rather than a `[source]` one: cargo names a replacement by it.
 fn replaced_by(config: &Config) -> anyhow::Result<Option<(String, bool)>> {
-    let mut name = blaze_registry::CRATES_IO_REGISTRY.to_owned();
+    let mut name = CRATES_IO_REGISTRY.to_owned();
     let mut last = None;
     while let Some(with) = config.get_string(&format!("source.{name}.replace-with"))? {
         name = with.val;
@@ -352,9 +347,7 @@ fn replaced_by(config: &Config) -> anyhow::Result<Option<(String, bool)>> {
             is_source |= config.get_string(&format!("source.{name}.{key}"))?.is_some();
         }
         last = Some((name.clone(), !is_source));
-        if !is_source
-            || last.as_ref().is_some_and(|(it, _)| it == blaze_registry::CRATES_IO_REGISTRY)
-        {
+        if !is_source || last.as_ref().is_some_and(|(it, _)| it == CRATES_IO_REGISTRY) {
             break;
         }
     }
@@ -372,7 +365,7 @@ fn registry_named(config: &Config, id: &SourceId) -> anyhow::Result<Option<Strin
         .ok()
         .flatten();
     Ok(registries.into_iter().flatten().find_map(|(name, it)| {
-        let it = SourceId::for_registry(it.index.as_deref()?).ok()?;
+        let it = blaze_registry::registry_source(it.index.as_deref()?).ok()?;
         (it.canonical_url() == id.canonical_url()).then_some(name)
     }))
 }
@@ -426,7 +419,7 @@ fn registry(
         bail!("command-line argument --index requires --token to be specified");
     }
     let sources = blaze_metadata::registry_sources(&run.ctx, false)?;
-    let registry = sources.registry(&target.replacement)?;
+    let registry = sources.registry(target.replacement)?;
     if force_update {
         registry.invalidate();
     }
@@ -479,7 +472,9 @@ fn credentials(run: &Run, target: &Target) -> anyhow::Result<Option<Credentials>
             .filter_map(|(k, v)| {
                 Some((k.strip_prefix("CARGO_REGISTRIES_")?.strip_suffix("_INDEX")?, v))
             })
-            .filter(|(_, v)| SourceId::for_registry(v).is_ok_and(|it| it.canonical_url() == index))
+            .filter(|(_, v)| {
+                blaze_registry::registry_source(v).is_ok_and(|it| it.canonical_url() == index)
+            })
             .map(|(k, _)| k.to_lowercase())
             .collect();
         if names.is_empty() {

@@ -14,6 +14,7 @@ pub(crate) mod closure;
 pub(crate) mod compile_time;
 mod directives;
 pub(crate) mod fetches;
+mod hermetic;
 pub(crate) mod layout;
 mod messages;
 pub(crate) mod metadata;
@@ -59,7 +60,7 @@ pub(crate) fn command(args: impl Iterator<Item = String>) -> anyhow::Result<()> 
         crate::end_with_reader();
     }
     if let Asked::Build(_) = asked
-        && let Err(why) = toolchain::settle()
+        && let Err(why) = toolchain::settle(true)
     {
         say::error(&why);
         std::process::exit(FAILED);
@@ -76,7 +77,7 @@ pub(crate) fn command(args: impl Iterator<Item = String>) -> anyhow::Result<()> 
         Asked::Stop => stop()?,
         Asked::Enable => switch::enable()?,
         Asked::Disable => switch::disable()?,
-        Asked::Toolchain { path } => match toolchain::settle() {
+        Asked::Toolchain { path } => match toolchain::settle(false) {
             Ok(chosen) if path => {
                 println!("{}", chosen.dir().display());
                 0

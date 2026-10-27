@@ -431,6 +431,43 @@ unprivileged user namespace alone, and costs a mount per bind, about 20 µs each
 a view and 0.33 ms bare (median of 50, an arm64 ix VM of 16 cores, 2026-10-27). On macOS
 a view is not made (decided): the spec's other fields apply and the binds are not read.
 
+With `RA_JIT_SCRIPT_VIEW=on` (Linux; off until CI pushes the closure to the shared remote) a
+build script runs in such a view, its closure (`cargo/hermetic`): its package read-only with
+the target directory and `.git` below it hidden, its `OUT_DIR` written, the `OUT_DIR`s its
+`DEP_*` variables name, the toolchain and ra-jit's own rustc, and the pinned nixpkgs closure
+at `/nix/store`: clang, lld, binutils, glibc, the Linux headers, pkg-config, bash (also
+`/bin/sh`), coreutils, make, sed, awk, grep, diff and find, with a crate's libraries added.
+blaze fetches and verifies the closure itself (`ra-jit closure fetch`, no `nix` binary) and
+lays it out from the store or the remote (`ra-jit closure materialize`). A crate's libraries
+are, first, the workspace's:
+
+```toml
+[workspace.metadata.blaze.system-deps]
+openssl-sys = ["openssl.out", "openssl.dev"]   # nixpkgs attributes of harness/closure_pins.py
+```
+
+else the shipped table's (`cargo/hermetic/libs.toml`, by version), else none. Its environment
+is cargo's documented variables for scripts (`CARGO`, `CARGO_*` but `CARGO_HOME`, `DEP_*`,
+`OUT_DIR`, `TARGET`, `HOST`, `PROFILE`, `OPT_LEVEL`, `DEBUG`, `NUM_JOBS`, `RUSTC`, `RUSTDOC`,
+the jobserver's), what it declares with `rerun-if-env-changed`, `build-script-env`, what
+`blaze lock --fetches` hands it, and the closure's: `PATH` of its `bin`s, `CC`, `CXX`, `AR`,
+`PKG_CONFIG(_PATH)`, `NIX_CFLAGS_COMPILE` and `NIX_LDFLAGS` of its libraries (with
+`-ffile-prefix-map` of the package to `/package` and the target directory to `/target`),
+`HOME=/homeless-shelter`, `TMPDIR=/tmp`. Never the runner's: no other variable, ra-jit's own
+neither. A run is kept under one key of what it saw: what the script was built from, its
+arguments and environment with the checkout's and target directory's paths taken out, its
+package's source (`.cargo-checksum.json`, a git checkout's commit, a path package's tree),
+each closure path's NarHash and its dependencies' `OUT_DIR` trees; nothing of what it read,
+as it can read nothing else. One whose files name where it ran is kept for that place alone.
+A failed run says what it was given and what it lacked: a library (the `system-deps` line to
+add), a write outside `OUT_DIR` (the way out), a variable. Over the bench corpus 425 of 434
+runs succeed in their closure, 24 of them with libraries of the table, and every one is a
+store hit on the same machine and from another's store pulled from the remote, at the same
+checkout path (`bench/results/2026-10-27-bscache/closure.md`). A script cargo's rustc compiled
+is keyed by its bytes, which name `CARGO_HOME`, so another checkout path misses it yet.
+`RA_JIT_KEY_TRACE=<dir>` writes each key's fields to `<dir>/<key>.txt`, to see what two
+machines' keys differ in.
+
 Compiling a build script, running it and building a proc macro are each an entry of the
 store, so they travel with `ra-jit cache push` and `pull` and through the gateway like any
 compiled function ([remote-cache.md](remote-cache.md)). Each is kept under two keys
@@ -466,7 +503,9 @@ With `RA_JIT_STATS` each hit says so (`ra-jit: a run the store kept`, `ra-jit: a
 store kept: ...`), where cargo shows what a script printed.
 
 Every proc-macro server a load starts, the toolchain's and ra-jit's own, runs in the sandbox
-too, writing nothing: no `OUT_DIR`, only the empty temporary directories. A server is started
+too, writing nothing: no `OUT_DIR`, only the empty temporary directories. It is given what a
+test is given and ra-jit's and rust-analyzer's own variables, not the shell's; a crate's
+variables come with each expansion. A server is started
 once, when a load first needs it, and serves every expansion after, so the sandbox costs its
 start (about 8 ms on Linux, 25 ms on macOS) and nothing per expansion. The packages of
 `unsandboxed-proc-macros` are expanded by servers of their own, started outside. The hook is

@@ -1617,8 +1617,33 @@ fn last_words(log: &Path) -> String {
         let message = lines.get(at + 1).copied().unwrap_or_default();
         return format!("panicked at {place} {message}");
     }
-    let last = lines.iter().rev().find(|it| it.starts_with("Error"));
-    last.or(lines.last()).copied().unwrap_or("no output").to_owned()
+    match last_error(&log) {
+        Some(error) => format!("Error: {}", error.replace('\n', "; ")),
+        None => lines.last().copied().unwrap_or("no output").to_owned(),
+    }
+}
+
+/// The last error a worker's log has, with what caused it, each cause on a line of its own:
+/// the outermost error says what blaze was doing, and the innermost why it could not, which
+/// is what the user acts on.
+pub(crate) fn last_error(log: &str) -> Option<String> {
+    let lines: Vec<&str> = log.lines().collect();
+    let at = lines.iter().rposition(|it| it.starts_with("Error"))?;
+    let mut said = lines[at].strip_prefix("Error: ").unwrap_or(lines[at]).to_owned();
+    let mut rest = lines[at + 1..].iter().skip_while(|it| it.trim().is_empty());
+    if rest.next().is_some_and(|it| it.trim() == "Caused by:") {
+        for line in rest.take_while(|it| it.starts_with("    ")) {
+            let line = line.trim();
+            // `0: what`, or a line more of the cause before it.
+            let numbered = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
+            match line.split_once(": ").filter(|(n, _)| numbered(n)) {
+                Some((_, cause)) => said.push_str(&format!("\n{cause}")),
+                None if said.contains('\n') => said.push_str(&format!("\n  {line}")),
+                None => said.push_str(&format!("\n{line}")),
+            }
+        }
+    }
+    Some(said)
 }
 
 /// The end of a worker's log, for the daemon's: where it panicked and with what, then its
@@ -1680,5 +1705,26 @@ mod tests {
         assert_eq!(over(&holding, 8), ["oldest", "old"]);
         // The busy one and the one asked last stay, whatever they hold.
         assert_eq!(over(&holding, 0), ["oldest", "old"]);
+    }
+
+    #[test]
+    fn a_workers_last_error_is_said_with_what_caused_it() {
+        let log = "symbols: 0 in 138.9µs\n\
+            Error: Failed to build the build scripts of /w\n\
+            \n\
+            Caused by:\n    \
+            0: blaze could not link the proc macro of `clap_derive v4.6.7` for the load\n    \
+            1: the proc macro `clap_derive` cannot run as WebAssembly: no wasm32-wasip1 target\n         \
+            name its package in `native-proc-macros` to expand it natively\n";
+        assert_eq!(
+            last_error(log).unwrap(),
+            "Failed to build the build scripts of /w\n\
+             blaze could not link the proc macro of `clap_derive v4.6.7` for the load\n\
+             the proc macro `clap_derive` cannot run as WebAssembly: no wasm32-wasip1 target\n  \
+             name its package in `native-proc-macros` to expand it natively"
+        );
+        assert_eq!(last_error("Error: one\n\nCaused by:\n    two\n").unwrap(), "one\ntwo");
+        assert_eq!(last_error("Error: alone\n").unwrap(), "alone");
+        assert_eq!(last_error("nothing wrong\n"), None);
     }
 }
