@@ -53,7 +53,7 @@ jobs:
         run: |
           # No rustup or cargo on PATH: blaze brings its own.
           PATH=$(echo "$PATH" | tr ':' '\n' | grep -v -e '\.cargo/bin' -e rustup | paste -sd: -)
-          python3 harness/experience.py --install blaze-commit-aarch64-apple-darwin.tar.gz --work "$RUNNER_TEMP/exp-norust" hello derives macapp || true
+          python3 harness/experience.py --install blaze-commit-aarch64-apple-darwin.tar.gz --work "$RUNNER_TEMP/exp-norust" hello derives macapp pyo3 sys || true
       - if: always()
         uses: actions/upload-artifact@v7
         with:
