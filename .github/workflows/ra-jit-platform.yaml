@@ -57,14 +57,11 @@ env:
   RA_JIT_SANDBOX: ${{ startsWith(inputs.os, 'windows') && 'off' || '' }}
   # Git Bash on Windows has `python` and no `python3`.
   PYTHON: ${{ startsWith(inputs.os, 'windows') && 'python' || 'python3' }}
-  # sccache keeps what rustc compiled in the Actions cache, for the steps that set RUSTC_WRAPPER:
-  # rust-cache keeps the dependencies from crates.io and drops the crates of this repository and
-  # vendor/, which are most of a build. The harnesses run without it, since cargo_ra_jit.py
-  # tests a user's own wrapper.
-  SCCACHE_GHA_ENABLED: "true"
-  # Main alone writes it, as with rust-cache: what a pull request or a merge-queue entry writes
-  # is kept for that ref alone, which nothing reads again, and it pushes main's out of the 10 GB.
-  SCCACHE_GHA_RW_MODE: ${{ github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
+  # blaze builds and tests blaze on Linux x86-64 (AGENTS.md rule blaze-builds-blaze): the
+  # latest release is the compiler and its store the one cache, kept between runs by
+  # actions/cache (.github/actions/blaze). The other platforms build with cargo until blaze
+  # builds itself there.
+  BLAZE: ${{ inputs.platform == 'linux-x64' }}
 
 defaults:
   run:
@@ -80,16 +77,23 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - uses: ./.github/actions/toolchain
+        with:
+          llvm: ${{ env.BLAZE == 'true' && 'build' || 'none' }}
+      - if: env.BLAZE == 'true'
+        uses: ./.github/actions/blaze
+        with:
+          job: tests
       # Caches are written by main alone: a pull request reads main's and writes none.
-      - uses: Swatinem/rust-cache@v2
+      - if: env.BLAZE != 'true'
+        uses: Swatinem/rust-cache@v2
         with:
           shared-key: tests
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: mozilla-actions/sccache-action@v0.0.11
-      - run: $PYTHON harness/unittests.py
-        env:
-          RUSTC_WRAPPER: sccache
-      - run: sccache --show-stats
+      # `cargo blaze test`, in the flake's dev shell for its C toolchain; cargo's elsewhere.
+      - if: env.BLAZE == 'true'
+        run: nix develop --command $PYTHON harness/unittests.py
+      - if: env.BLAZE != 'true'
+        run: $PYTHON harness/unittests.py --cargo
       # On a push to main, rustc's tests into the cache for the borrowck and pinned-ui jobs of
       # the runs after it, which then need not fetch them.
       - if: inputs.tier == 'warm' && (inputs.borrowck || inputs.pinned-ui)
@@ -108,15 +112,23 @@ jobs:
       - uses: ./.github/actions/toolchain
         with:
           llvm: build
-      - uses: Swatinem/rust-cache@v2
+      - if: env.BLAZE == 'true'
+        uses: ./.github/actions/blaze
+        with:
+          job: build
+      - if: env.BLAZE != 'true'
+        uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: mozilla-actions/sccache-action@v0.0.11
       # In the flake's dev shell, against the LLVM it pins. On Windows, which has no Nix, the
       # build is against the static C runtime, and names libraries of the SDK that the linker is
       # not otherwise shown.
+      - name: cargo blaze build -p ra-jit --release --features llvm
+        if: env.BLAZE == 'true'
+        run: nix develop --command cargo blaze build -p ra-jit --release --features llvm --locked
       - name: cargo build -p ra-jit --release --features llvm
+        if: env.BLAZE != 'true'
         run: |
           if [ "$RUNNER_OS" = Windows ]; then
             sdk=$(ls -d "/c/Program Files (x86)/Windows Kits/10/Lib/"*/um/x64 | tail -n 1)
@@ -125,9 +137,6 @@ jobs:
           else
             nix develop --command cargo build -p ra-jit --release --features llvm --locked
           fi
-        env:
-          RUSTC_WRAPPER: sccache
-      - run: sccache --show-stats
       # blaze's proc-macro server beside ra-jit, as a release has it: a load into ra-jit's own
       # target directory has ra-jit link every proc macro for that server, and fails without
       # one ("ra-jit did not build the proc macro", docs/no-rustc.md, J). Not on Windows, whose

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """unittests.py: the crates' own tests, with the ones known to fail named.
 
-usage: unittests.py [cargo test argument ...]
+usage: unittests.py [--cargo] [cargo test argument ...]
 
-Runs `cargo test --release --no-fail-fast` of the crates below, in two cargo runs: ROOT_CRATES
+Runs `cargo blaze test --release --no-fail-fast` of the crates below (blaze tests blaze, AGENTS.md
+rule blaze-builds-blaze; `--cargo`: plain `cargo test`, on the platforms blaze does not build
+itself on yet), in two cargo runs: ROOT_CRATES
 in the root workspace, and FORK_CRATES (the rust-analyzer fork's) in vendor/rust-analyzer's own
 workspace (run in vendor/rust-analyzer, so that its own .cargo/config.toml sets
 CARGO_WORKSPACE_DIR, where expect-test finds the parser's .rast files), since the root does not claim
@@ -74,11 +76,14 @@ def run(command, cwd, env, seen, failed):
 
 
 def main():
-    test = ["cargo", "test", "--release", "--no-fail-fast"]
+    args = sys.argv[1:]
+    plain = args[:1] == ["--cargo"]
+    args = args[plain:]
+    test = ["cargo", *([] if plain else ["blaze"]), "test", "--release", "--no-fail-fast"]
     commands = [
-        (ROOT, [*test, *(f"-p{c}" for c in ROOT_CRATES), *sys.argv[1:]]),
+        (ROOT, [*test, *(f"-p{c}" for c in ROOT_CRATES), *args]),
         # cargo reads .cargo/config.toml from where it runs, not from --manifest-path.
-        (FORK, [*test, *(f"-p{c}" for c in FORK_CRATES), *sys.argv[1:]]),
+        (FORK, [*test, *(f"-p{c}" for c in FORK_CRATES), *args]),
     ]
     # Under CI rust-analyzer's slow tests run, and mark that they did in the target directory,
     # which they take to be vendor/rust-analyzer/target unless told.

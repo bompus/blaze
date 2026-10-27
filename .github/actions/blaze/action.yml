@@ -1,0 +1,34 @@
+# blaze to build and test blaze with (AGENTS.md rule blaze-builds-blaze): the latest release,
+# installed by install.sh into ~/.cargo/bin, and blaze's store, the one cache, kept between
+# runs with actions/cache under a key of its own per platform and job. Main alone writes it, as
+# with the caches before it: what a pull request or a merge-queue entry writes is kept for that
+# ref alone, which nothing reads again.
+name: blaze
+description: the latest release of blaze, and its store from the runs before
+inputs:
+  job:
+    description: the job whose store this is (build, tests)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: blaze (the latest release)
+      shell: bash
+      # The toolchain action installed the nightly blaze builds with.
+      run: |
+        sh install.sh --no-toolchain --verbose
+        blaze --version
+        echo "RA_JIT_CACHE=$RUNNER_TEMP/blaze-store" >> "$GITHUB_ENV"
+    # On main: restored now, saved when the job ends. Elsewhere: restored only.
+    - if: github.ref == 'refs/heads/main'
+      uses: actions/cache@v6
+      with:
+        path: ${{ runner.temp }}/blaze-store
+        key: blaze-store-${{ runner.os }}-${{ runner.arch }}-${{ inputs.job }}-${{ github.sha }}
+        restore-keys: blaze-store-${{ runner.os }}-${{ runner.arch }}-${{ inputs.job }}-
+    - if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/blaze-store
+        key: blaze-store-${{ runner.os }}-${{ runner.arch }}-${{ inputs.job }}-${{ github.sha }}
+        restore-keys: blaze-store-${{ runner.os }}-${{ runner.arch }}-${{ inputs.job }}-
