@@ -315,10 +315,16 @@ def edit(root, spec, undo=False):
 
 
 def blaze_processes():
-    out = subprocess.run(["pgrep", "-a", "-f", "ra-jit|blaze"], capture_output=True, text=True).stdout
-    me = str(os.getpid())
-    return [line for line in out.splitlines() if not line.startswith(me + " ") and "experience.py" not in line
-            and "pgrep" not in line]
+    # By the program each runs, not by its arguments: a shell whose script names an archive
+    # (`blaze-commit-...tar.gz`) is not blaze's. macOS's `pgrep -a` means ancestors, not arguments.
+    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    left = []
+    for line in out.splitlines():
+        pid, _, command = line.strip().partition(" ")
+        program = os.path.basename(command.split(" ", 1)[0]) if command else ""
+        if re.fullmatch(r"(cargo-)?(blaze|ra-jit)(-[\w-]+)?", program):
+            left.append(f"{pid} {command[:160]}")
+    return left
 
 
 def flow(name, spec, work, env):
