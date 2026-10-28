@@ -241,7 +241,13 @@ def train(target, out):
     work = Path(tempfile.mkdtemp(prefix="rjpgo-", dir="/tmp"))
     raw = work / "raw"
     raw.mkdir()
-    built, _ = build(target, ROOT / "target" / "pgo-instrumented", f"-Cprofile-generate={raw}", "-fno-profile-generate")
+    rustflags = f"-Cprofile-generate={raw}"
+    # The instrumented ra-jit outgrows the ±128 MiB of an aarch64 call: GNU ld then fails on a call
+    # to `__llvm_profile_instrument_memop` (R_AARCH64_CALL26). rustc's own lld, which x86_64 Linux
+    # links with already, puts range-extension thunks in.
+    if target == "aarch64-unknown-linux-gnu":
+        rustflags += " -Zunstable-options -Clinker-features=+lld -Clink-self-contained=+linker"
+    built, _ = build(target, ROOT / "target" / "pgo-instrumented", rustflags, "-fno-profile-generate")
     binaries, crate = built[0].parent, crate_hash(built)
 
     # Each process of the instrumented ra-jit writes its counters to a file of its own as it exits.
