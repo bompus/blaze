@@ -61,7 +61,7 @@ env:
   # compiler and its store the one cache, pulled from the shared remote main's runs push to
   # (.github/actions/blaze). Windows builds with cargo, and no cache, since release.yaml makes
   # no release of blaze for Windows yet, so there is no blaze there to build with.
-  BLAZE: ${{ !startsWith(inputs.os, 'windows') }}
+  BLAZE: ${{ inputs.platform == 'linux-x64' }}
   # A pull request runs the tests its change reached and takes the rest as passed from main's
   # store; main runs every test, which records each pass for the pull requests after it, and
   # says of each that passed before whether it passed again.

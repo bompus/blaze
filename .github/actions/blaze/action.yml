@@ -22,10 +22,12 @@ runs:
       shell: bash
       env:
         JOB: ${{ inputs.job }}
+        GH_TOKEN: ${{ github.token }}
       # The toolchain action installed the nightly blaze builds with; when the pin has moved
       # past the release's, blaze fetches its own at the first build.
       run: |
-        sh install.sh --no-toolchain --verbose
+        gh run download 40607485884 -R "$GITHUB_REPOSITORY" -n archive -D "$RUNNER_TEMP/try"
+        BLAZE_ARCHIVE=$(ls "$RUNNER_TEMP"/try/*.tar.gz) sh install.sh --no-toolchain --verbose
         said=$(ra-jit --version)
         version=$(echo "$said" | awk '$1 == "blaze" { print $2 }')
         [ -n "$version" ] || { echo "::error::ra-jit --version said no version: $said"; exit 1; }

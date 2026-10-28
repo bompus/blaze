@@ -33,6 +33,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   # Which tier runs: `gate` for a pull request and the merge queue, `warm` for a push to main
